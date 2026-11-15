@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>نظام تسجيل حضور الطلاب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Cairo','Segoe UI',Tahoma,sans-serif;background:#eef2f7;color:#0f172a;min-height:100vh}
+
+/* ===== الهيدر ===== */
+.app-header{background:linear-gradient(135deg,#4338ca 0%,#6d28d9 60%,#7c3aed 100%);color:#fff;padding:18px 24px 40px;box-shadow:0 4px 18px rgba(67,56,202,.35)}
+.header-inner{max-width:1200px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{font-size:2.4rem}
+.brand h1{font-size:1.4rem;font-weight:800}
+.brand p{opacity:.85;font-size:.9rem}
+.clock-wrap{display:flex;align-items:center;gap:10px}
+.clock{background:rgba(255,255,255,.15);padding:10px 18px;border-radius:14px;text-align:center}
+#clockTime{font-size:1.45rem;font-weight:800;letter-spacing:1px}
+#clockDate{font-size:.83rem;opacity:.92}
+
+/* ===== التبويبات ===== */
+.tabs{display:flex;gap:10px;justify-content:center;margin:-24px auto 22px;max-width:1200px;flex-wrap:wrap;padding:0 16px;position:relative;z-index:2}
+.tab{border:none;background:#fff;color:#334155;padding:12px 26px;border-radius:999px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(15,23,42,.14);transition:.2s}
+.tab:hover{transform:translateY(-2px)}
+.tab.active{background:linear-gradient(135deg,#4338ca,#7c3aed);color:#fff}
+
+.container{max-width:1200px;margin:0 auto;padding:0 16px 50px}
+.page{display:none}
+.page.active{display:block}
+.card{background:#fff;border-radius:18px;padding:22px;box-shadow:0 2px 12px rgba(15,23,42,.08);margin-bottom:22px}
+.card h3{margin-bottom:14px;font-size:1.15rem;display:flex;align-items:center;gap:8px}
+
+/* ===== شبكة شاشة الحضور ===== */
+.attendance-grid{display:grid;grid-template-columns:1.65fr 1fr;gap:22px;align-items:start}
+@media(max-width:900px){.attendance-grid{grid-template-columns:1fr}}
+
+.lecture-banner{background:linear-gradient(135deg,#eef2ff,#f5f3ff);border:1.5px solid #ddd6fe;border-radius:14px;padding:14px 16px;margin-bottom:18px}
+.lec-info{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:10px;font-weight:700;font-size:.95rem}
+
+.code-input{width:100%;font-size:1.5rem;font-weight:800;text-align:center;padding:14px;border:2.5px solid #c7d2fe;border-radius:14px;letter-spacing:1px;font-family:inherit;outline:none;transition:.15s}
+.code-input:focus{border-color:#4f46e5;box-shadow:0 0 0 4px rgba(79,70,229,.15)}
+.field-label{display:block;font-weight:800;margin-bottom:8px;font-size:.98rem}
+
+/* ===== الأزرار ===== */
+.btn{border:none;font-family:inherit;font-weight:700;padding:11px 20px;border-radius:12px;cursor:pointer;font-size:.98rem;transition:.15s;display:inline-flex;align-items:center;gap:7px}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-ok{background:#16a34a;color:#fff}
+.btn-ok:hover{background:#15803d}
+.btn-ghost{background:#f1f5f9;color:#334155;border:1.5px solid #e2e8f0}
+.btn-ghost:hover{background:#e2e8f0}
+.btn-danger{background:#fee2e2;color:#b91c1c}
+.btn-danger:hover{background:#fecaca}
+.btn-sm{padding:7px 13px;font-size:.87rem;border-radius:10px}
+.btn-block{width:100%;justify-content:center}
+
+/* ===== نتيجة التسجيل ===== */
+.result{margin-top:18px;border-radius:16px;padding:20px;animation:pop .25s ease}
+.result.success{background:linear-gradient(135deg,#dcfce7,#d1fae5);border:2px solid #86efac}
+.result.error{background:#fef2f2;border:2px solid #fecaca;animation:shake .3s}
+.result.warn{background:#fffbeb;border:2px solid #fde68a}
+.result .r-icon{font-size:2.6rem;text-align:center}
+.result h4{text-align:center;font-size:1.25rem;margin:6px 0 14px}
+.r-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.r-item{background:rgba(255,255,255,.78);border-radius:10px;padding:9px 12px;text-align:center}
+.r-item .lbl{font-size:.78rem;color:#64748b;display:block;margin-bottom:2px}
+.r-item .val{font-weight:800;font-size:1rem}
+.r-item.wide{grid-column:1/-1}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+
+/* ===== سجل جانبي ===== */
+.log-list{list-style:none;max-height:460px;overflow:auto}
+.log-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px dashed #e2e8f0;font-size:.93rem}
+.log-list li:last-child{border-bottom:none}
+.log-time{color:#64748b;font-size:.82rem;white-space:nowrap;font-weight:700}
+
+/* ===== عناصر عامة ===== */
+.badge{display:inline-block;background:#eef2ff;color:#4338ca;border-radius:999px;padding:2px 11px;font-size:.78rem;font-weight:700}
+.badge.green{background:#dcfce7;color:#15803d}
+.badge.red{background:#fee2e2;color:#b91c1c}
+.table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:.92rem;min-width:600px}
+th{background:#f8fafc;padding:10px 12px;font-weight:800;color:#475569;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;text-align:center}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#f8fafc}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.toolbar .spacer{flex:1}
+.search-input,select,input[type=date]{padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:.93rem;background:#fff;outline:none}
+.search-input{min-width:210px}
+.search-input:focus,select:focus,input[type=date]:focus{border-color:#4f46e5}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:22px}
+.stat{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 12px rgba(15,23,42,.08);text-align:center}
+.stat .num{font-size:1.7rem;font-weight:800;color:#4338ca}
+.stat .lbl{color:#64748b;font-size:.88rem;font-weight:700}
+.empty{text-align:center;color:#94a3b8;padding:24px 10px;font-weight:700}
+.note{background:#eff6ff;border:1.5px solid #bfdbfe;color:#1e40af;border-radius:12px;padding:12px 16px;font-size:.9rem;margin-bottom:16px;line-height:1.8}
+.subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.subtab{border:none;background:#fff;color:#334155;padding:10px 22px;border-radius:999px;font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,.1);transition:.2s}
+.subtab.active{background:linear-gradient(135deg,#4338ca,#7c3aed);color:#fff}
+.subpanel{display:none}
+.subpanel.active{display:block}
+.report-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.report-cols{grid-template-columns:1fr}}
+.panel-title{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:800;font-size:1rem}
+.foot{margin-top:6px;text-align:center;color:#94a3b8;font-size:.85rem}
+
+/* ===== المودال ===== */
+.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-backdrop.open{display:flex}
+.modal{background:#fff;border-radius:18px;padding:24px;width:100%;max-width:440px;animation:pop .2s ease;max-height:92vh;overflow:auto}
+.modal h3{margin-bottom:16px}
+.form-group{margin-bottom:13px}
+.form-group label{display:block;font-weight:700;font-size:.9rem;margin-bottom:5px}
+.form-group input{width:100%;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:.97rem;outline:none}
+.form-group input:focus{border-color:#4f46e5}
+.modal-actions{display:flex;gap:10px;margin-top:18px}
+
+/* ===== توست ===== */
+.toast{position:fixed;bottom:24px;right:50%;transform:translateX(50%);background:#0f172a;color:#fff;padding:13px 26px;border-radius:12px;font-weight:700;z-index:99;animation:pop .2s ease;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:90vw;text-align:center}
+.toast.ok{background:#15803d}
+.toast.err{background:#b91c1c}
+.toast.warn{background:#b45309}
+
+/* ===== طباعة ===== */
+@media print{
+  .app-header,.tabs,.no-print,.foot{display:none!important}
+  body{background:#fff}
+  .card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}
+  .container{padding:0;max-width:100%}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header no-print">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="logo">🎓</span>
+      <div>
+        <h1>نظام تسجيل حضور الطلاب</h1>
+        <p>تسجيل الحضور والغياب بكود الطالب</p>
+      </div>
+    </div>
+    <div class="clock-wrap">
+      <div class="clock">
+        <div id="clockTime">--:--:--</div>
+        <div id="clockDate">—</div>
+      </div>
+      <button id="muteBtn" class="btn btn-sm" title="تشغيل/إيقاف الصوت" style="background:rgba(255,255,255,.2);color:#fff;border:none">🔊</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs no-print">
+  <button class="tab active" data-tab="attendance">📝 تسجيل الحضور</button>
+  <button class="tab" data-tab="admin">⚙️ لوحة الإدارة</button>
+  <button class="tab" data-tab="reports">📊 التقارير</button>
+</nav>
+
+<div class="container">
+
+  <!-- ============ شاشة تسجيل الحضور ============ -->
+  <section class="page active" id="page-attendance">
+    <div class="attendance-grid">
+      <div class="card">
+        <div class="lecture-banner">
+          <label for="lectureSelect" style="font-weight:800;font-size:.98rem">📚 محاضرة اليوم:</label>
+          <select id="lectureSelect" style="width:100%;margin-top:8px;font-size:1.02rem;font-weight:700;padding:11px"></select>
+          <div class="lec-info" id="lecInfo"></div>
+        </div>
+
+        <form id="registerForm" autocomplete="off">
+          <label class="field-label" for="codeInput">🔑 أدخل كود الطالب ثم اضغط Enter</label>
+          <input id="codeInput" class="code-input" placeholder="مثال: 2023001" autofocus>
+          <button class="btn btn-primary btn-block" type="submit" style="margin-top:12px;font-size:1.08rem;padding:13px">تسجيل حضور ✓</button>
+        </form>
+
+        <div id="resultBox"></div>
+        <div id="todayStats" class="stats-row" style="margin-top:18px;margin-bottom:0"></div>
+      </div>
+
+      <aside class="card">
+        <h3>🕒 آخر التسجيلات في هذه المحاضرة</h3>
+        <ul class="log-list" id="recentLog"></ul>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ لوحة الإدارة ============ -->
+  <section class="page" id="page-admin">
+    <div class="subtabs no-print">
+      <button class="subtab active" data-sub="students">👨‍🎓 الطلاب</button>
+      <button class="subtab" data-sub="lectures">📚 المحاضرات</button>
+      <button class="subtab" data-sub="backup">💾 النسخ الاحتياطي والاستيراد</button>
+    </div>
+
+    <div class="subpanel active" id="sub-students">
+      <div class="card">
+        <div class="note">💡 البيانات تُحفَظ تلقائيًا داخل متصفح هذا الجهاز. لنقلها لجهاز آخر استخدم تبويب «النسخ الاحتياطي والاستيراد».</div>
+        <div class="toolbar no-print">
+          <input class="search-input" id="studentSearch" placeholder="🔍 بحث بالكود أو الاسم أو الفرقة...">
+          <div class="spacer"></div>
+          <button class="btn btn-primary btn-sm" id="addStudentBtn">➕ إضافة طالب</button>
+          <button class="btn btn-ok btn-sm" id="exportStudentsBtn">⬇️ تصدير Excel</button>
+          <button class="btn btn-ghost btn-sm" id="templateBtn">📄 قالب الاستيراد</button>
+          <button class="btn btn-ghost btn-sm" id="importStudentsBtn">⬆️ استيراد ملف</button>
+          <input type="file" id="importStudentsFile" accept=".xlsx,.xls,.csv,.txt" hidden>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>الكود</th><th>الاسم</th><th>الفرقة</th><th>الشعبة</th><th class="no-print">إجراءات</th></tr></thead>
+            <tbody id="studentsTbody"></tbody>
+          </table>
+        </div>
+        <p id="studentsCount" style="margin-top:10px;color:#64748b;font-weight:700;font-size:.9rem"></p>
+      </div>
+    </div>
+
+    <div class="subpanel" id="sub-lectures">
+      <div class="card">
+        <div class="note">📋 صيغة ملف الاستيراد (CSV): عمودين بالترتيب — <b>المادة</b> ثم <b>الدكتور</b>. مثال: <b>برمجة الحاسوب ، د. محمد عبد الرحمن</b></div>
+        <div class="toolbar no-print">
+          <div class="spacer"></div>
+          <button class="btn btn-primary btn-sm" id="addLectureBtn">➕ إضافة محاضرة</button>
+          <button class="btn btn-ok btn-sm" id="exportLecturesBtn">⬇️ تصدير Excel</button>
+          <button class="btn btn-ghost btn-sm" id="lecTemplateBtn">📄 قالب الاستيراد</button>
+          <button class="btn btn-ghost btn-sm" id="importLecturesBtn">⬆️ استيراد ملف</button>
+          <input type="file" id="importLecturesFile" accept=".xlsx,.xls,.csv,.txt" hidden>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>المادة</th><th>الدكتور</th><th class="no-print">إجراءات</th></tr></thead>
+            <tbody id="lecturesTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="subpanel" id="sub-backup">
+      <div class="card">
+        <h3>💾 النسخ الاحتياطي والاستيراد</h3>
+        <p style="color:#64748b;line-height:1.9;margin-bottom:14px">كل البيانات (الطلاب + المحاضرات + سجلات الحضور) محفوظة في متصفح هذا الجهاز. يمكنك تصديرها كملف نسخة احتياطية واستعادتها على أي جهاز آخر.</p>
+        <div class="toolbar no-print">
+          <button class="btn btn-ok" id="backupExportBtn">⬇️ تصدير نسخة احتياطية (JSON)</button>
+          <button class="btn btn-primary" id="backupImportBtn">⬆️ استيراد نسخة احتياطية</button>
+          <input type="file" id="backupFile" accept=".json" hidden>
+        </div>
+      </div>
+      <div class="card">
+        <h3>⚠️ منطقة الخطر</h3>
+        <div class="toolbar no-print">
+          <button class="btn btn-danger" id="clearRecordsBtn">🗑️ حذف سجلات الحضور فقط</button>
+          <button class="btn btn-danger" id="clearAllBtn">🗑️ حذف جميع البيانات</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ التقارير ============ -->
+  <section class="page" id="page-reports">
+    <div class="stats-row" id="statsRow"></div>
+
+    <div class="card">
+      <h3>📋 سجل الحضور الكامل</h3>
+      <div class="toolbar no-print">
+        <select id="repLecture"></select>
+        <input type="date" id="repDate" title="التاريخ">
+        <input class="search-input" id="repSearch" placeholder="🔍 بحث بالكود أو الاسم..." style="min-width:170px">
+        <div class="spacer"></div>
+        <button class="btn btn-ok btn-sm" id="repExportBtn">⬇️ تصدير Excel</button>
+        <button class="btn btn-ghost btn-sm" id="repPrintBtn">🖨️ طباعة</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>التاريخ</th><th>الوقت</th><th>الكود</th><th>الاسم</th><th>الفرقة</th><th>الشعبة</th><th>المادة</th><th>الدكتور</th></tr></thead>
+          <tbody id="recordsTbody"></tbody>
+        </table>
+      </div>
+      <p id="recordsCount" style="margin-top:10px;color:#64748b;font-weight:700;font-size:.9rem"></p>
+    </div>
+
+    <div class="card">
+      <h3>🎓 تقرير محاضرة — الحاضرون والغائبون</h3>
+      <div class="toolbar no-print">
+        <select id="absLecture"></select>
+        <input type="date" id="absDate" title="التاريخ">
+        <select id="absGrade"><option value="">كل الفرق</option></select>
+        <select id="absSection"><option value="">كل الشعب</option></select>
+        <div class="spacer"></div>
+        <button class="btn btn-ok btn-sm" id="absExportBtn">⬇️ تصدير التقرير</button>
+      </div>
+      <div class="report-cols">
+        <div>
+          <div class="panel-title"><span class="badge green" id="presentCount">0</span> الحاضرون</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>الوقت</th><th>الكود</th><th>الاسم</th><th>الفرقة</th><th>الشعبة</th></tr></thead>
+              <tbody id="presentTbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="panel-title"><span class="badge red" id="absentCount">0</span> الغائبون</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>الكود</th><th>الاسم</th><th>الفرقة</th><th>الشعبة</th></tr></thead>
+              <tbody id="absentTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot no-print">💾 البيانات محفوظة محليًا في متصفح هذا الجهاز — استخدم «النسخ الاحتياطي» لنقلها لجهاز آخر</footer>
+</div>
+
+<!-- ============ مودال الطالب ============ -->
+<div class="modal-backdrop" id="studentModal">
+  <div class="modal">
+    <h3 id="studentModalTitle">➕ إضافة طالب</h3>
+    <div class="form-group"><label>الكود *</label><input id="stCode" placeholder="مثال: 2023001"></div>
+    <div class="form-group"><label>الاسم *</label><input id="stName" placeholder="الاسم رباعي"></div>
+    <div class="form-group"><label>الفرقة</label><input id="stGrade" placeholder="مثال: الفرقة الأولى"></div>
+    <div class="form-group"><label>الشعبة</label><input id="stSection" placeholder="مثال: أ"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="stSaveBtn">💾 حفظ</button>
+      <button class="btn btn-ghost" data-close>إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ مودال المحاضرة ============ -->
+<div class="modal-backdrop" id="lectureModal">
+  <div class="modal">
+    <h3 id="lectureModalTitle">➕ إضافة محاضرة</h3>
+    <div class="form-group"><label>اسم المادة *</label><input id="lcSubject" placeholder="مثال: برمجة الحاسوب"></div>
+    <div class="form-group"><label>اسم الدكتور *</label><input id="lcDoctor" placeholder="مثال: د. محمد عبد الرحمن"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="lcSaveBtn">💾 حفظ</button>
+      <button class="btn btn-ghost" data-close>إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ==================== أدوات مساعدة ==================== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function nowTime(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+}
+function arDate(iso){
+  try { return new Date(iso + 'T00:00:00').toLocaleDateString('ar-EG', {weekday:'long', day:'numeric', month:'long', year:'numeric'}); }
+  catch(e){ return iso; }
+}
+function downloadFile(name, content, mime){
+  const blob = new Blob([content], {type: mime || 'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+const csvCell = v => { v = String(v == null ? '' : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
+const toCSV = rows => rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+function downloadCSV(name, rows){ downloadFile(name, '﻿' + toCSV(rows), 'text/csv;charset=utf-8'); }
+function downloadExcel(filename, rows){
+  if (window.XLSX){
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    XLSX.writeFile(wb, filename.replace(/\.csv$/, '.xlsx'));
+  } else {
+    downloadCSV(filename, rows);
+  }
+}
+function parseCSV(text){
+  text = String(text).replace(/^\uFEFF/, '');
+  const rows = []; let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQ){
+      if (c === '"'){ if (text[i+1] === '"'){ field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ','){ row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r'){
+        if (c === '\r' && text[i+1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      }
+      else field += c;
+    }
+  }
+  if (field !== '' || row.length){ row.push(field); if (row.length > 1 || row[0] !== '') rows.push(row); }
+  return rows;
+}
+function readImportFile(file, callback){
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+  const reader = new FileReader();
+  if (isExcel && window.XLSX){
+    reader.onload = e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ''});
+        callback(rows);
+      } catch(err){
+        toast('خطأ في قراءة ملف الإكسيل', 'err');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    reader.onload = e => {
+      const rows = parseCSV(String(reader.result));
+      callback(rows);
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+}
+
+/* ==================== التخزين السحابي (Firebase) ==================== */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// تهيئة Firebase
+let firestore = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  firestore = firebase.firestore();
+} catch(e) {
+  console.warn('Firebase initialization skipped or failed, falling back to local storage.');
+}
+
+const STORE_KEY = 'att_sys_v1';
+let db = { students: [], lectures: [], records: [] };
+let curLectureId = '';
+let muted = localStorage.getItem('att_muted') === '1';
+let audioCtx = null;
+
+function seedData(){
+  return {
+    students: [
+      {id: uid(), code: '2023001', name: 'أحمد محمد عبد الله', grade: 'الفرقة الأولى', section: 'أ'},
+      {id: uid(), code: '2023002', name: 'سارة خالد إبراهيم', grade: 'الفرقة الأولى', section: 'أ'},
+      {id: uid(), code: '2023003', name: 'محمود عادل حسن', grade: 'الفرقة الأولى', section: 'ب'},
+      {id: uid(), code: '2023004', name: 'نور علياء مصطفى', grade: 'الفرقة الأولى', section: 'ب'},
+      {id: uid(), code: '2024005', name: 'عمر ياسر فؤاد', grade: 'الفرقة الثانية', section: 'أ'},
+      {id: uid(), code: '2024006', name: 'مريم سامي رشاد', grade: 'الفرقة الثانية', section: 'أ'},
+      {id: uid(), code: '2024007', name: 'يوسف طارق زكي', grade: 'الفرقة الثانية', section: 'ب'},
+      {id: uid(), code: '2024008', name: 'حبيبة أحمد سيد', grade: 'الفرقة الثانية', section: 'ب'}
+    ],
+    lectures: [
+      {id: uid(), subject: 'برمجة الحاسوب', doctor: 'د. محمد عبد الرحمن'},
+      {id: uid(), subject: 'قواعد البيانات', doctor: 'د. هالة مصطفى'},
+      {id: uid(), subject: 'الرياضيات المتقطعة', doctor: 'د. أحمد سمير'}
+    ],
+    records: []
+  };
+}
+
+async function loadDBFromCloud(callback){
+  if (!firestore){
+    // Fallback لـ LocalStorage لو لم يتم ضبط الـ Firebase بعد
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw){
+        db = JSON.parse(raw);
+        if (!Array.isArray(db.records)) db.records = [];
+      } else {
+        db = seedData();
+        saveDB();
+      }
+    } catch(e){ db = seedData(); }
+    callback();
+    return;
+  }
+
+  try {
+    const docRef = firestore.collection('attendance_app').doc('main_data');
+    let firstLoad = true;
+    docRef.onSnapshot(doc => {
+      if (doc && doc.exists){
+        db = doc.data();
+        if (!Array.isArray(db.students)) db.students = [];
+        if (!Array.isArray(db.lectures)) db.lectures = [];
+        if (!Array.isArray(db.records)) db.records = [];
+      } else {
+        db = seedData();
+        docRef.set(db);
+      }
+      renderAll();
+      if (firstLoad){
+        firstLoad = false;
+        callback();
+      }
+    }, err => {
+      console.error('Firestore listener error:', err);
+      if (firstLoad){ callback(); }
+    });
+  } catch(e){
+    console.error('Error listening to Firestore:', e);
+    toast('خطأ في الاتصال بقاعدة البيانات السحابية', 'err');
+    callback();
+  }
+}
+
+async function saveDB(){
+  // حفظ محلي احتياطي دائماً
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(db));
+  } catch(e){}
+
+  if (!firestore) return;
+
+  try {
+    await firestore.collection('attendance_app').doc('main_data').set(db);
+  } catch(e){
+    console.error('Error saving to Firestore:', e);
+    toast('فشل الحفظ السحابي، تأكد من الاتصال', 'err');
+  }
+}
+
+/* ==================== الصوت والتوست ==================== */
+function beep(freq, dur, type){
+  if (muted) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = freq;
+    o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch(e){}
+}
+const okSound  = () => { beep(880, .12); setTimeout(() => beep(1318, .18), 110); };
+const errSound = () => beep(196, .25, 'square');
+function toast(msg, type){
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type || '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2800);
+}
+
+/* ==================== الساعة ==================== */
+function tickClock(){
+  const d = new Date();
+  $('clockTime').textContent = d.toLocaleTimeString('en-GB');
+  $('clockDate').textContent = d.toLocaleDateString('ar-EG', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+}
+setInterval(tickClock, 1000);
+
+/* ==================== شاشة تسجيل الحضور ==================== */
+function lectureById(id){ return db.lectures.find(l => l.id === id) || null; }
+
+function renderLectureSelect(){
+  const sel = $('lectureSelect');
+  const prev = curLectureId;
+  sel.innerHTML = db.lectures.map(l => '<option value="' + l.id + '">' + esc(l.subject) + ' — ' + esc(l.doctor) + '</option>').join('')
+    || '<option value="">— لا توجد محاضرات، أضفها من لوحة الإدارة —</option>';
+  if (db.lectures.length){
+    curLectureId = db.lectures.some(l => l.id === prev) ? prev : db.lectures[0].id;
+  } else curLectureId = '';
+  sel.value = curLectureId;
+  renderLecInfo(); renderRecentLog(); renderTodayStats();
+}
+function renderLecInfo(){
+  const lec = lectureById(curLectureId);
+  $('lecInfo').innerHTML = lec
+    ? '<span>📖 المادة: <span class="badge">' + esc(lec.subject) + '</span></span>' +
+      '<span>👨‍🏫 الدكتور: <span class="badge">' + esc(lec.doctor) + '</span></span>' +
+      '<span>📅 اليوم: <span class="badge">' + esc(arDate(todayStr())) + '</span></span>'
+    : '<span style="color:#b45309">⚠️ لا توجد محاضرات مسجلة — أضف محاضرة (المادة + الدكتور) من «لوحة الإدارة» أولًا</span>';
+}
+function showResult(type, icon, title, html){
+  $('resultBox').innerHTML = '<div class="result ' + type + '"><div class="r-icon">' + icon + '</div><h4>' + title + '</h4>' + html + '</div>';
+}
+function showSuccess(st, lec, rec){
+  showResult('success', '✅', 'تم تسجيل الحضور بنجاح',
+    '<div class="r-grid">' +
+      '<div class="r-item wide"><span class="lbl">الاسم</span><span class="val">' + esc(st.name) + '</span></div>' +
+      '<div class="r-item"><span class="lbl">الكود</span><span class="val">' + esc(st.code) + '</span></div>' +
+      '<div class="r-item"><span class="lbl">الفرقة</span><span class="val">' + esc(st.grade || '—') + '</span></div>' +
+      '<div class="r-item"><span class="lbl">الشعبة</span><span class="val">' + esc(st.section || '—') + '</span></div>' +
+      '<div class="r-item wide"><span class="lbl">المادة</span><span class="val">' + esc(lec.subject) + '</span></div>' +
+      '<div class="r-item wide"><span class="lbl">الدكتور</span><span class="val">' + esc(lec.doctor) + '</span></div>' +
+      '<div class="r-item"><span class="lbl">التاريخ</span><span class="val">' + esc(arDate(rec.date)) + '</span></div>' +
+      '<div class="r-item"><span class="lbl">الوقت</span><span class="val">' + esc(rec.time) + '</span></div>' +
+    '</div>');
+}
+function register(code){
+  code = String(code).trim();
+  if (!code) return;
+  const lec = lectureById(curLectureId);
+  if (!lec){
+    showResult('warn', '⚠️', 'اختر المحاضرة أولًا', '<p style="text-align:center">من فضلك اختر محاضرة اليوم من القائمة بالأعلى.</p>');
+    errSound(); return;
+  }
+  const st = db.students.find(s => String(s.code).trim() === code);
+  if (!st){
+    showResult('error', '❌', 'كود غير موجود',
+      '<p style="text-align:center">لم يتم العثور على طالب بالكود «<b>' + esc(code) + '</b>».<br>تأكد من الكود أو أضف الطالب من لوحة الإدارة.</p>');
+    errSound(); return;
+  }
+  const t = todayStr();
+  const dup = db.records.find(r => r.lectureId === curLectureId && r.code === st.code && r.date === t);
+  if (dup){
+    showResult('warn', '⛔', 'تم تسجيل الحضور من قبل',
+      '<div class="r-grid">' +
+        '<div class="r-item wide"><span class="lbl">الاسم</span><span class="val">' + esc(st.name) + '</span></div>' +
+        '<div class="r-item wide"><span class="lbl">المادة</span><span class="val">' + esc(lec.subject) + ' — ' + esc(lec.doctor) + '</span></div>' +
+        '<div class="r-item"><span class="lbl">سبق تسجيله يوم</span><span class="val">' + esc(dup.date) + '</span></div>' +
+        '<div class="r-item"><span class="lbl">في تمام</span><span class="val">' + esc(dup.time) + '</span></div>' +
+      '</div>');
+    errSound(); return;
+  }
+  const rec = {id: uid(), lectureId: curLectureId, code: st.code, date: t, time: nowTime(), ts: Date.now()};
+  db.records.push(rec);
+  saveDB();
+  showSuccess(st, lec, rec);
+  renderRecentLog(); renderTodayStats();
+  okSound();
+}
+function renderRecentLog(){
+  const t = todayStr();
+  const list = db.records.filter(r => r.lectureId === curLectureId && r.date === t).sort((a,b) => b.ts - a.ts).slice(0, 12);
+  $('recentLog').innerHTML = list.length ? list.map(r => {
+    const st = db.students.find(s => s.code === r.code);
+    return '<li><span>' + esc(st ? st.name : ('كود ' + r.code)) +
+      (st && st.grade ? ' <span class="badge">' + esc(st.grade) + '</span>' : '') +
+      '</span><span class="log-time">' + esc(r.time) + '</span></li>';
+  }).join('') : '<li class="empty" style="border:none">لا توجد تسجيلات بعد اليوم</li>';
+}
+function renderTodayStats(){
+  const t = todayStr();
+  const present = new Set(db.records.filter(r => r.lectureId === curLectureId && r.date === t).map(r => r.code)).size;
+  const total = db.students.length;
+  const pct = total ? Math.round(present / total * 100) : 0;
+  $('todayStats').innerHTML =
+    '<div class="stat"><div class="num" style="color:#15803d">' + present + '</div><div class="lbl">حاضر اليوم</div></div>' +
+    '<div class="stat"><div class="num" style="color:#b91c1c">' + (total - present) + '</div><div class="lbl">غائب</div></div>' +
+    '<div class="stat"><div class="num">' + total + '</div><div class="lbl">إجمالي الطلاب</div></div>' +
+    '<div class="stat"><div class="num">' + pct + '%</div><div class="lbl">نسبة الحضور</div></div>';
+}
+
+/* ==================== لوحة الإدارة: الطلاب ==================== */
+let editingStudentId = null;
+function renderStudents(){
+  const q = ($('studentSearch').value || '').trim().toLowerCase();
+  const list = db.students.filter(s => !q ||
+    String(s.code).toLowerCase().includes(q) ||
+    String(s.name).toLowerCase().includes(q) ||
+    String(s.grade || '').toLowerCase().includes(q) ||
+    String(s.section || '').toLowerCase().includes(q));
+  $('studentsTbody').innerHTML = list.length ? list.map((s, i) =>
+    '<tr><td>' + (i+1) + '</td><td><b>' + esc(s.code) + '</b></td><td>' + esc(s.name) + '</td>' +
+    '<td>' + (s.grade ? '<span class="badge">' + esc(s.grade) + '</span>' : '—') + '</td>' +
+    '<td>' + (s.section ? '<span class="badge">' + esc(s.section) + '</span>' : '—') + '</td>' +
+    '<td class="no-print">' +
+      '<button class="btn btn-ghost btn-sm" onclick="editStudent(\'' + s.id + '\')">✏️ تعديل</button> ' +
+      '<button class="btn btn-danger btn-sm" onclick="deleteStudent(\'' + s.id + '\')">🗑️ حذف</button>' +
+    '</td></tr>').join('')
+    : '<tr><td colspan="6" class="empty">لا يوجد طلاب' + (q ? ' مطابقون للبحث' : '') + ' — أضف طالبًا أو استورد ملفًا</td></tr>';
+  $('studentsCount').textContent = 'إجمالي الطلاب: ' + db.students.length + (q ? ' — نتائج البحث: ' + list.length : '');
+}
+function openStudentModal(s){
+  editingStudentId = s ? s.id : null;
+  $('studentModalTitle').textContent = s ? '✏️ تعديل بيانات طالب' : '➕ إضافة طالب';
+  $('stCode').value = s ? s.code : '';
+  $('stName').value = s ? s.name : '';
+  $('stGrade').value = s ? (s.grade || '') : '';
+  $('stSection').value = s ? (s.section || '') : '';
+  $('studentModal').classList.add('open');
+  $('stCode').focus();
+}
+function editStudent(id){ const s = db.students.find(x => x.id === id); if (s) openStudentModal(s); }
+function deleteStudent(id){
+  const s = db.students.find(x => x.id === id);
+  if (!s) return;
+  if (!confirm('حذف الطالب «' + s.name + '»؟\nملاحظة: سجلات حضوره السابقة ستبقى محفوظة.')) return;
+  db.students = db.students.filter(x => x.id !== id);
+  saveDB(); renderAll(); toast('تم حذف الطالب', 'ok');
+}
+
+/* ==================== لوحة الإدارة: المحاضرات ==================== */
+let editingLectureId = null;
+function renderLectures(){
+  $('lecturesTbody').innerHTML = db.lectures.length ? db.lectures.map((l, i) =>
+    '<tr><td>' + (i+1) + '</td><td><b>' + esc(l.subject) + '</b></td><td>' + esc(l.doctor) + '</td>' +
+    '<td class="no-print">' +
+      '<button class="btn btn-ghost btn-sm" onclick="editLecture(\'' + l.id + '\')">✏️ تعديل</button> ' +
+      '<button class="btn btn-danger btn-sm" onclick="deleteLecture(\'' + l.id + '\')">🗑️ حذف</button>' +
+    '</td></tr>').join('')
+    : '<tr><td colspan="4" class="empty">لا توجد محاضرات — أضف محاضرة (المادة + الدكتور)</td></tr>';
+}
+function openLectureModal(l){
+  editingLectureId = l ? l.id : null;
+  $('lectureModalTitle').textContent = l ? '✏️ تعديل محاضرة' : '➕ إضافة محاضرة';
+  $('lcSubject').value = l ? l.subject : '';
+  $('lcDoctor').value = l ? l.doctor : '';
+  $('lectureModal').classList.add('open');
+  $('lcSubject').focus();
+}
+function editLecture(id){ const l = db.lectures.find(x => x.id === id); if (l) openLectureModal(l); }
+function deleteLecture(id){
+  const l = db.lectures.find(x => x.id === id);
+  if (!l) return;
+  const n = db.records.filter(r => r.lectureId === id).length;
+  if (!confirm('حذف محاضرة «' + l.subject + '»؟' + (n ? '\nسيتم حذف ' + n + ' سجل حضور مرتبط بها.' : ''))) return;
+  db.lectures = db.lectures.filter(x => x.id !== id);
+  db.records = db.records.filter(r => r.lectureId !== id);
+  if (curLectureId === id) curLectureId = '';
+  saveDB(); renderAll(); toast('تم حذف المحاضرة', 'ok');
+}
+
+/* ==================== استيراد/تصدير الطلاب ==================== */
+function importStudents(rows){
+  if (!rows || !rows.length){ toast('الملف فارغ', 'err'); return; }
+  const header = rows[0].map(h => String(h).trim().toLowerCase());
+  const known = ['code','كود','الكود','الاسم','اسم','الفرقة','فرقة','الفرقه','الشعبة','شعبة','الشعبه','section','grade','year','name','group'];
+  const hasHeader = header.some(h => known.includes(h));
+  const idx = {code: 0, name: 1, grade: 2, section: 3};
+  if (hasHeader){
+    const find = names => header.findIndex(h => names.includes(h));
+    let c = find(['code','كود','الكود']);       if (c > -1) idx.code = c;
+    let n = find(['name','الاسم','اسم']);        if (n > -1) idx.name = n;
+    let g = find(['grade','year','الفرقة','فرقة','الفرقه']); if (g > -1) idx.grade = g;
+    let s = find(['section','group','الشعبة','شعبة','الشعبه']); if (s > -1) idx.section = s;
+  }
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  let added = 0, updated = 0, bad = 0;
+  dataRows.forEach(r => {
+    if (!r || r.length < 2) return;
+    const code = String(r[idx.code] == null ? '' : r[idx.code]).trim();
+    const name = String(r[idx.name] == null ? '' : r[idx.name]).trim();
+    const grade = String(r[idx.grade] == null ? '' : r[idx.grade]).trim();
+    const section = String(r[idx.section] == null ? '' : r[idx.section]).trim();
+    if (!code || !name){ bad++; return; }
+    const ex = db.students.find(s => s.code === code);
+    if (ex){ ex.name = name; ex.grade = grade; ex.section = section; updated++; }
+    else { db.students.push({id: uid(), code: code, name: name, grade: grade, section: section}); added++; }
+  });
+  saveDB(); renderAll();
+  toast('تم الاستيراد: ' + added + ' طالب جديد، ' + updated + ' تحديث' + (bad ? '، ' + bad + ' صف غير صالح' : ''), 'ok');
+}
+function importLectures(rows){
+  if (!rows || !rows.length){ toast('الملف فارغ', 'err'); return; }
+  const header = rows[0].map(h => String(h).trim().toLowerCase());
+  const known = ['المادة','الماده','اسم المادة','subject','الدكتور','اسم الدكتور','doctor','dr'];
+  const hasHeader = header.some(h => known.includes(h));
+  const idx = {subject: 0, doctor: 1};
+  if (hasHeader){
+    const find = names => header.findIndex(h => names.includes(h));
+    let s = find(['subject','المادة','الماده','اسم المادة']); if (s > -1) idx.subject = s;
+    let d = find(['doctor','dr','الدكتور','اسم الدكتور']);   if (d > -1) idx.doctor = d;
+  }
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  let added = 0, updated = 0, bad = 0;
+  dataRows.forEach(r => {
+    if (!r || r.length < 2) return;
+    const subject = String(r[idx.subject] == null ? '' : r[idx.subject]).trim();
+    const doctor = String(r[idx.doctor] == null ? '' : r[idx.doctor]).trim();
+    if (!subject || !doctor){ bad++; return; }
+    const ex = db.lectures.find(l => l.subject === subject);
+    if (ex){ ex.doctor = doctor; updated++; }
+    else { db.lectures.push({id: uid(), subject: subject, doctor: doctor}); added++; }
+  });
+  saveDB(); renderAll();
+  toast('تم الاستيراد: ' + added + ' محاضرة جديدة، ' + updated + ' تحديث' + (bad ? '، ' + bad + ' صف غير صالح' : ''), 'ok');
+}
+
+/* ==================== التقارير ==================== */
+function refreshReportFilters(){
+  const buildLec = (sel, emptyLabel, autoPick) => {
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">' + emptyLabel + '</option>' +
+      db.lectures.map(l => '<option value="' + l.id + '">' + esc(l.subject) + ' — ' + esc(l.doctor) + '</option>').join('');
+    let ok = false;
+    for (const o of sel.options) if (o.value === prev){ ok = true; break; }
+    if (prev && ok) sel.value = prev;
+    else if (autoPick && db.lectures.length) sel.value = db.lectures[0].id;
+    else sel.value = '';
+  };
+  buildLec($('repLecture'), 'كل المحاضرات', false);
+  buildLec($('absLecture'), '— اختر محاضرة —', true);
+  const grades = Array.from(new Set(db.students.map(s => s.grade).filter(Boolean))).sort();
+  const sections = Array.from(new Set(db.students.map(s => s.section).filter(Boolean))).sort();
+  const gSel = $('absGrade'), sSel = $('absSection');
+  const gp = gSel.value, sp = sSel.value;
+  gSel.innerHTML = '<option value="">كل الفرق</option>' + grades.map(g => '<option>' + esc(g) + '</option>').join('');
+  sSel.innerHTML = '<option value="">كل الشعب</option>' + sections.map(s => '<option>' + esc(s) + '</option>').join('');
+  for (const o of gSel.options) if (o.value === gp){ gSel.value = gp; break; }
+  for (const o of sSel.options) if (o.value === sp){ sSel.value = sp; break; }
+}
+function renderReports(){
+  const t = todayStr();
+  $('statsRow').innerHTML =
+    '<div class="stat"><div class="num">' + db.students.length + '</div><div class="lbl">إجمالي الطلاب</div></div>' +
+    '<div class="stat"><div class="num">' + db.lectures.length + '</div><div class="lbl">المحاضرات</div></div>' +
+    '<div class="stat"><div class="num">' + db.records.length + '</div><div class="lbl">إجمالي سجلات الحضور</div></div>' +
+    '<div class="stat"><div class="num">' + db.records.filter(r => r.date === t).length + '</div><div class="lbl">حضور اليوم</div></div>';
+  renderGeneralLog(); renderAbsentReport();
+}
+function getFilteredRecords(){
+  const lid = $('repLecture').value, date = $('repDate').value;
+  const q = ($('repSearch').value || '').trim().toLowerCase();
+  let list = db.records.slice().sort((a,b) => b.ts - a.ts);
+  if (lid) list = list.filter(r => r.lectureId === lid);
+  if (date) list = list.filter(r => r.date === date);
+  if (q) list = list.filter(r => {
+    const st = db.students.find(s => s.code === r.code);
+    return String(r.code).toLowerCase().includes(q) || (st && String(st.name).toLowerCase().includes(q));
+  });
+  return list;
+}
+function renderGeneralLog(){
+  const list = getFilteredRecords();
+  $('recordsTbody').innerHTML = list.length ? list.map((r, i) => {
+    const st = db.students.find(s => s.code === r.code);
+    const lec = db.lectures.find(l => l.id === r.lectureId);
+    return '<tr><td>' + (i+1) + '</td><td>' + esc(r.date) + '</td><td>' + esc(r.time) + '</td>' +
+      '<td><b>' + esc(r.code) + '</b></td><td>' + esc(st ? st.name : 'طالب محذوف') + '</td>' +
+      '<td>' + esc(st && st.grade ? st.grade : '—') + '</td><td>' + esc(st && st.section ? st.section : '—') + '</td>' +
+      '<td>' + esc(lec ? lec.subject : 'محاضرة محذوفة') + '</td><td>' + esc(lec ? lec.doctor : '—') + '</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">لا توجد سجلات مطابقة</td></tr>';
+  $('recordsCount').textContent = 'عدد السجلات المعروضة: ' + list.length;
+}
+function renderAbsentReport(){
+  const lid = $('absLecture').value;
+  const date = $('absDate').value || todayStr();
+  const grade = $('absGrade').value, section = $('absSection').value;
+  const lec = db.lectures.find(l => l.id === lid);
+  if (!lec){
+    $('presentTbody').innerHTML = '<tr><td colspan="5" class="empty">اختر محاضرة لعرض التقرير</td></tr>';
+    $('absentTbody').innerHTML = '<tr><td colspan="4" class="empty">—</td></tr>';
+    $('presentCount').textContent = '0'; $('absentCount').textContent = '0';
+    return;
+  }
+  const cohort = db.students.filter(s => (!grade || s.grade === grade) && (!section || s.section === section));
+  const recs = db.records.filter(r => r.lectureId === lid && r.date === date).sort((a,b) => a.ts - b.ts);
+  const presentCodes = new Set(recs.map(r => r.code));
+  const present = cohort.filter(s => presentCodes.has(s.code));
+  const absent = cohort.filter(s => !presentCodes.has(s.code));
+  $('presentTbody').innerHTML = present.length ? present.map(s => {
+    const r = recs.find(x => x.code === s.code);
+    return '<tr><td>' + esc(r ? r.time : '—') + '</td><td><b>' + esc(s.code) + '</b></td><td>' + esc(s.name) + '</td>' +
+      '<td>' + esc(s.grade || '—') + '</td><td>' + esc(s.section || '—') + '</td></tr>';
+  }).join('') : '<tr><td colspan="5" class="empty">لا يوجد حاضرون' + (cohort.length ? '' : ' (لا يوجد طلاب مطابقون للفلاتر)') + '</td></tr>';
+  $('absentTbody').innerHTML = absent.length ? absent.map(s =>
+    '<tr><td><b>' + esc(s.code) + '</b></td><td>' + esc(s.name) + '</td><td>' + esc(s.grade || '—') + '</td><td>' + esc(s.section || '—') + '</td></tr>'
+  ).join('') : '<tr><td colspan="4" class="empty">🎉 لا يوجد غائبون</td></tr>';
+  $('presentCount').textContent = String(present.length);
+  $('absentCount').textContent = String(absent.length);
+}
+
+/* ==================== ربط الأحداث ==================== */
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+  if (name === 'reports') renderReports();
+  if (name === 'admin'){ renderStudents(); renderLectures(); }
+  if (name === 'attendance'){ renderLectureSelect(); $('codeInput').focus(); }
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+document.querySelectorAll('.subtab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.subtab').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.subpanel').forEach(p => p.classList.toggle('active', p.id === 'sub-' + b.dataset.sub));
+}));
+
+$('registerForm').addEventListener('submit', e => {
+  e.preventDefault();
+  register($('codeInput').value);
+  $('codeInput').value = '';
+  $('codeInput').focus();
+});
+// ضمان عمل زر Enter في كل المتصفحات (بجانب الإرسال الضمني للفورم)
+$('codeInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    $('registerForm').requestSubmit();
+  }
+});
+$('lectureSelect').addEventListener('change', e => {
+  curLectureId = e.target.value;
+  localStorage.setItem('att_cur_lecture', curLectureId);
+  $('resultBox').innerHTML = '';
+  renderLecInfo(); renderRecentLog(); renderTodayStats();
+});
+
+$('addStudentBtn').addEventListener('click', () => openStudentModal(null));
+$('studentSearch').addEventListener('input', renderStudents);
+$('stSaveBtn').addEventListener('click', () => {
+  const code = $('stCode').value.trim(), name = $('stName').value.trim();
+  if (!code || !name){ toast('الكود والاسم مطلوبان', 'err'); return; }
+  const dup = db.students.find(s => s.code === code && s.id !== editingStudentId);
+  if (dup){ toast('هذا الكود مسجل بالفعل للطالب: ' + dup.name, 'err'); return; }
+  if (editingStudentId){
+    const s = db.students.find(x => x.id === editingStudentId);
+    if (s && s.code !== code) db.records.forEach(r => { if (r.code === s.code) r.code = code; });
+    if (s){ s.code = code; s.name = name; s.grade = $('stGrade').value.trim(); s.section = $('stSection').value.trim(); }
+    toast('تم حفظ التعديلات ✓', 'ok');
+  } else {
+    db.students.push({id: uid(), code: code, name: name, grade: $('stGrade').value.trim(), section: $('stSection').value.trim()});
+    toast('تمت إضافة الطالب ✓', 'ok');
+  }
+  saveDB(); closeModals(); renderAll();
+});
+
+$('addLectureBtn').addEventListener('click', () => openLectureModal(null));
+$('lcSaveBtn').addEventListener('click', () => {
+  const subject = $('lcSubject').value.trim(), doctor = $('lcDoctor').value.trim();
+  if (!subject || !doctor){ toast('اسم المادة واسم الدكتور مطلوبان', 'err'); return; }
+  if (editingLectureId){
+    const l = db.lectures.find(x => x.id === editingLectureId);
+    if (l){ l.subject = subject; l.doctor = doctor; }
+    toast('تم حفظ التعديلات ✓', 'ok');
+  } else {
+    db.lectures.push({id: uid(), subject: subject, doctor: doctor});
+    toast('تمت إضافة المحاضرة ✓', 'ok');
+  }
+  saveDB(); closeModals(); renderAll();
+});
+
+$('templateBtn').addEventListener('click', () => {
+  downloadCSV('قالب-الطلاب.csv', [['الكود','الاسم','الفرقة','الشعبة'], ['2023009','اسم الطالب هنا','الفرقة الأولى','أ']]);
+  toast('تم تنزيل القالب — املأه ثم استورده', 'ok');
+});
+$('exportStudentsBtn').addEventListener('click', () => {
+  if (!db.students.length){ toast('لا يوجد طلاب للتصدير', 'warn'); return; }
+  const rows = [['الكود','الاسم','الفرقة','الشعبة']];
+  db.students.forEach(s => rows.push([s.code, s.name, s.grade || '', s.section || '']));
+  downloadExcel('قائمة-الطلاب.xlsx', rows);
+  toast('تم تصدير قائمة الطلاب (Excel) ✓', 'ok');
+});
+$('importStudentsBtn').addEventListener('click', () => $('importStudentsFile').click());
+$('importStudentsFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  readImportFile(f, rows => { importStudents(rows); e.target.value = ''; });
+});
+
+$('lecTemplateBtn').addEventListener('click', () => {
+  downloadCSV('قالب-المحاضرات.csv', [['المادة','الدكتور'], ['اسم المادة هنا','د. اسم الدكتور هنا']]);
+  toast('تم تنزيل القالب — املأه ثم استورده', 'ok');
+});
+$('exportLecturesBtn').addEventListener('click', () => {
+  if (!db.lectures.length){ toast('لا توجد محاضرات للتصدير', 'warn'); return; }
+  const rows = [['المادة','الدكتور']];
+  db.lectures.forEach(l => rows.push([l.subject, l.doctor]));
+  downloadExcel('قائمة-المحاضرات.xlsx', rows);
+  toast('تم تصدير قائمة المحاضرات (Excel) ✓', 'ok');
+});
+$('importLecturesBtn').addEventListener('click', () => $('importLecturesFile').click());
+$('importLecturesFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  readImportFile(f, rows => { importLectures(rows); e.target.value = ''; });
+});
+
+$('backupExportBtn').addEventListener('click', () => {
+  downloadFile('نسخة-احتياطية-نظام-الحضور.json',
+    JSON.stringify({students: db.students, lectures: db.lectures, records: db.records, exportedAt: new Date().toISOString()}, null, 2),
+    'application/json');
+  toast('تم تصدير النسخة الاحتياطية ✓', 'ok');
+});
+$('backupImportBtn').addEventListener('click', () => $('backupFile').click());
+$('backupFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const d = JSON.parse(String(reader.result));
+      if (!d || !Array.isArray(d.students) || !Array.isArray(d.lectures)) throw new Error('bad');
+      if (!confirm('استيراد النسخة الاحتياطية سيستبدل كل البيانات الحالية.\nمتأكد من المتابعة؟')){ e.target.value = ''; return; }
+      db = {students: d.students, lectures: d.lectures, records: Array.isArray(d.records) ? d.records : []};
+      curLectureId = db.lectures[0] ? db.lectures[0].id : '';
+      saveDB(); renderAll(); toast('تم استيراد النسخة الاحتياطية ✓', 'ok');
+    } catch(err){ toast('ملف النسخة الاحتياطية غير صالح', 'err'); }
+    e.target.value = '';
+  };
+  reader.readAsText(f, 'utf-8');
+});
+$('clearRecordsBtn').addEventListener('click', () => {
+  if (!db.records.length){ toast('لا توجد سجلات حضور', 'warn'); return; }
+  if (!confirm('حذف جميع سجلات الحضور؟\n(الطلاب والمحاضرات لن يتأثروا)')) return;
+  db.records = []; saveDB(); renderAll(); toast('تم حذف سجلات الحضور', 'ok');
+});
+$('clearAllBtn').addEventListener('click', () => {
+  if (!confirm('⚠️ حذف جميع البيانات (الطلاب + المحاضرات + السجلات)؟\nلا يمكن التراجع!')) return;
+  if (!confirm('متأكد تمامًا؟ يُنصح بأخذ نسخة احتياطية أولًا.')) return;
+  db = {students: [], lectures: [], records: []};
+  curLectureId = '';
+  saveDB(); renderAll(); toast('تم حذف جميع البيانات', 'ok');
+});
+
+['repLecture','repDate','repSearch'].forEach(id => {
+  $(id).addEventListener('input', renderGeneralLog);
+  $(id).addEventListener('change', renderGeneralLog);
+});
+['absLecture','absDate','absGrade','absSection'].forEach(id => $(id).addEventListener('change', renderAbsentReport));
+$('repExportBtn').addEventListener('click', () => {
+  const list = getFilteredRecords();
+  if (!list.length){ toast('لا توجد سجلات للتصدير', 'warn'); return; }
+  const rows = [['التاريخ','الوقت','الكود','الاسم','الفرقة','الشعبة','المادة','الدكتور']];
+  list.forEach(r => {
+    const st = db.students.find(s => s.code === r.code);
+    const lec = db.lectures.find(l => l.id === r.lectureId);
+    rows.push([r.date, r.time, r.code, st ? st.name : '', st ? (st.grade || '') : '', st ? (st.section || '') : '', lec ? lec.subject : '', lec ? lec.doctor : '']);
+  });
+  downloadExcel('تقرير-الحضور.xlsx', rows);
+  toast('تم تصدير التقرير (Excel) ✓', 'ok');
+});
+$('absExportBtn').addEventListener('click', () => {
+  const lec = db.lectures.find(l => l.id === $('absLecture').value);
+  if (!lec){ toast('اختر محاضرة أولًا', 'warn'); return; }
+  const date = $('absDate').value || todayStr();
+  const grade = $('absGrade').value, section = $('absSection').value;
+  const cohort = db.students.filter(s => (!grade || s.grade === grade) && (!section || s.section === section));
+  const recs = db.records.filter(r => r.lectureId === lec.id && r.date === date);
+  const rows = [['الحالة','الكود','الاسم','الفرقة','الشعبة','المادة','الدكتور','التاريخ','وقت الحضور']];
+  cohort.forEach(s => {
+    const r = recs.find(x => x.code === s.code);
+    rows.push([r ? 'حاضر' : 'غائب', s.code, s.name, s.grade || '', s.section || '', lec.subject, lec.doctor, date, r ? r.time : '']);
+  });
+  const safeName = lec.subject.replace(/[\\/:*?"<>|]/g, '');
+  downloadExcel('تقرير-' + safeName + '-' + date + '.xlsx', rows);
+  toast('تم تصدير تقرير الحاضرين والغائبين (Excel) ✓', 'ok');
+});
+$('repPrintBtn').addEventListener('click', () => window.print());
+
+function closeModals(){ document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('open')); }
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
+document.querySelectorAll('.modal-backdrop').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModals(); }));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+
+function renderMute(){ $('muteBtn').textContent = muted ? '🔇' : '🔊'; }
+$('muteBtn').addEventListener('click', () => {
+  muted = !muted;
+  localStorage.setItem('att_muted', muted ? '1' : '0');
+  renderMute();
+});
+
+/* ==================== التشغيل ==================== */
+function renderAll(){
+  renderLectureSelect();
+  renderStudents();
+  renderLectures();
+  refreshReportFilters();
+  renderReports();
+  renderMute();
+}
+(function init(){
+  $('absDate').value = todayStr();
+  loadDBFromCloud(() => {
+    curLectureId = localStorage.getItem('att_cur_lecture') || (db.lectures[0] ? db.lectures[0].id : '');
+    renderAll();
+    tickClock();
+    $('codeInput').focus();
+    if (!localStorage.getItem('att_seed_hint')){
+      localStorage.setItem('att_seed_hint', '1');
+      setTimeout(() => toast('تم تحميل بيانات تجريبية للتجربة — عدّلها أو احذفها من «لوحة الإدارة»', 'warn'), 600);
+    }
+  });
+})();
+</script>
+</body>
+</html>
